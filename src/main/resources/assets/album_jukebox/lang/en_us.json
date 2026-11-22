@@ -1,0 +1,21 @@
+{
+  "block.album_jukebox.jukebox": "Album Jukebox",
+  "container.album_jukebox.storage": "Disc Storage",
+  "album_jukebox.empty": "Sneak + right-click to load discs",
+  "album_jukebox.ready": "Ready to play",
+  "album_jukebox.loading": "Loading…",
+  "album_jukebox.cancel": "Cancel loading",
+  "album_jukebox.error": "Unable to play this disc",
+  "album_jukebox.unavailable": "Audio service unavailable",
+  "album_jukebox.pause": "Pause",
+  "album_jukebox.play": "Play",
+  "album_jukebox.previous": "Previous track",
+  "album_jukebox.next": "Next track",
+  "album_jukebox.show_list": "Show playlist",
+  "album_jukebox.hide_list": "Hide playlist",
+  "album_jukebox.mode.once": "Play through once",
+  "album_jukebox.mode.all": "Repeat playlist",
+  "album_jukebox.mode.one": "Repeat track",
+  "album_jukebox.show_vfd": "Show level meter",
+  "album_jukebox.show_disc": "Show record"
+}

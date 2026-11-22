@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "album_jukebox",
+  "version": "${version}",
+  "name": "Album Jukebox",
+  "description": "A 27-disc jukebox with shared AudioPlayer playback controls.",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["dev.geduu.albumjukebox.AlbumJukebox"],
+    "client": ["dev.geduu.albumjukebox.client.AlbumJukeboxClient"],
+    "voicechat": ["dev.geduu.albumjukebox.AlbumVoicePlugin"]
+  },
+  "depends": {
+    "fabricloader": ">=0.18.6",
+    "fabric-api": "*",
+    "minecraft": "26.1.2",
+    "java": ">=25"
+  },
+  "suggests": {
+    "audioplayer": "2.2.0+26.1.2",
+    "voicechat": "*"
+  }
+}

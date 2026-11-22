@@ -1,0 +1,6 @@
+{
+  "model": {
+    "type": "minecraft:model",
+    "model": "album_jukebox:block/jukebox_item"
+  }
+}

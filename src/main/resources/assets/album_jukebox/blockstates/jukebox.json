@@ -1,0 +1,34 @@
+{
+  "variants": {
+    "facing=north,playing=false": {
+      "model": "album_jukebox:block/jukebox"
+    },
+    "facing=north,playing=true": {
+      "model": "album_jukebox:block/jukebox_playing"
+    },
+    "facing=east,playing=false": {
+      "model": "album_jukebox:block/jukebox",
+      "y": 90
+    },
+    "facing=east,playing=true": {
+      "model": "album_jukebox:block/jukebox_playing",
+      "y": 90
+    },
+    "facing=south,playing=false": {
+      "model": "album_jukebox:block/jukebox",
+      "y": 180
+    },
+    "facing=south,playing=true": {
+      "model": "album_jukebox:block/jukebox_playing",
+      "y": 180
+    },
+    "facing=west,playing=false": {
+      "model": "album_jukebox:block/jukebox",
+      "y": 270
+    },
+    "facing=west,playing=true": {
+      "model": "album_jukebox:block/jukebox_playing",
+      "y": 270
+    }
+  }
+}

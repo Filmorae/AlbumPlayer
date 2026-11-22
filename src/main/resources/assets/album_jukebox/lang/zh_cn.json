@@ -1,0 +1,21 @@
+{
+  "block.album_jukebox.jukebox": "专辑唱片机",
+  "container.album_jukebox.storage": "唱片仓",
+  "album_jukebox.empty": "潜行右键可装入唱片",
+  "album_jukebox.ready": "等待播放",
+  "album_jukebox.loading": "正在载入…",
+  "album_jukebox.cancel": "取消载入",
+  "album_jukebox.error": "这张唱片无法播放",
+  "album_jukebox.unavailable": "音频服务不可用",
+  "album_jukebox.pause": "暂停",
+  "album_jukebox.play": "播放",
+  "album_jukebox.previous": "上一曲",
+  "album_jukebox.next": "下一曲",
+  "album_jukebox.show_list": "展开播放列表",
+  "album_jukebox.hide_list": "收起播放列表",
+  "album_jukebox.mode.once": "播完即停",
+  "album_jukebox.mode.all": "列表循环",
+  "album_jukebox.mode.one": "单曲循环",
+  "album_jukebox.show_vfd": "显示电平表",
+  "album_jukebox.show_disc": "显示唱片"
+}

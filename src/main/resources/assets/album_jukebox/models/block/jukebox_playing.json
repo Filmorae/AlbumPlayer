@@ -1,0 +1,6 @@
+{
+  "parent": "album_jukebox:block/jukebox",
+  "textures": {
+    "front": "album_jukebox:block/front_playing"
+  }
+}
