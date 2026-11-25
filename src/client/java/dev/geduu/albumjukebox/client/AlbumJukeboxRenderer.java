@@ -5,6 +5,8 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
 import dev.geduu.albumjukebox.AlbumBlockEntity;
 import dev.geduu.albumjukebox.AlbumJukebox;
+import dev.geduu.albumjukebox.AlbumMeterInput;
+import dev.geduu.albumjukebox.AlbumVisualState;
 import java.util.Map;
 import java.util.WeakHashMap;
 import net.minecraft.client.renderer.LevelRenderer;
@@ -33,7 +35,12 @@ final class AlbumJukeboxRenderer implements BlockEntityRenderer<AlbumBlockEntity
     private static final Box CARTRIDGE = new Box(-0.45F, -0.31F, -7.73F, 0.45F, 0.27F, -6.95F, 0xff43484b);
     private static final Box NEEDLE = new Box(-0.09F, -0.46F, DeckGeometry.NEEDLE_FRONT,
         0.09F, -0.31F, DeckGeometry.NEEDLE_BACK, 0xffd3cab0);
-    private final Map<AlbumBlockEntity, DeckMotion> decks = new WeakHashMap<>();
+    private final Map<AlbumBlockEntity, Deck> decks = new WeakHashMap<>();
+
+    private static final class Deck {
+        final DeckMotion motion = new DeckMotion();
+        final FrontDisplay.Spectrum spectrum = new FrontDisplay.Spectrum();
+    }
 
     static {
         for (int i = 0; i < DISC_SIDES; i++) {
@@ -50,6 +57,9 @@ final class AlbumJukeboxRenderer implements BlockEntityRenderer<AlbumBlockEntity
         boolean hasDisc;
         int body;
         int label;
+        long vfdLit;
+        long vfdPeak;
+        int trackNumber;
     }
 
     @Override
@@ -62,8 +72,11 @@ final class AlbumJukeboxRenderer implements BlockEntityRenderer<AlbumBlockEntity
                                    ModelFeatureRenderer.CrumblingOverlay crumbling) {
         BlockEntityRenderer.super.extractRenderState(block, state, partialTick, camera, crumbling);
         state.lightCoords = LevelRenderer.getLightCoords(block.getLevel(), block.getBlockPos().above());
-        var motion = decks.computeIfAbsent(block, ignored -> new DeckMotion());
-        motion.update(block.visualState(), block.visualReceivedAt(), System.nanoTime());
+        long now = System.nanoTime();
+        var deck = decks.computeIfAbsent(block, ignored -> new Deck());
+        var motion = deck.motion;
+        var visual = block.visualState();
+        motion.update(visual, block.visualReceivedAt(), now);
         var disc = motion.display();
         state.facingAngle = 180F - block.getBlockState().getValue(BlockStateProperties.HORIZONTAL_FACING).toYRot();
         state.discAngle = motion.angle();
@@ -72,6 +85,33 @@ final class AlbumJukeboxRenderer implements BlockEntityRenderer<AlbumBlockEntity
         state.hasDisc = disc.hasDisc();
         state.body = 0xff000000 | disc.bodyColor();
         state.label = 0xff000000 | disc.labelColor();
+        state.vfdLit = state.vfdPeak = 0;
+        state.trackNumber = 0;
+
+        var facing = block.getBlockState().getValue(BlockStateProperties.HORIZONTAL_FACING);
+        Vec3 center = block.getBlockPos().getCenter();
+        double dx = camera.x - center.x;
+        double dz = camera.z - center.z;
+        double distanceSquared = camera.distanceToSqr(center);
+        boolean frontVisible = dx * facing.getStepX() + dz * facing.getStepZ() > 0;
+        boolean active = visual.arm() == AlbumVisualState.Arm.PLAY && visual.channel() != null
+            && frontVisible && distanceSquared <= FrontDisplay.RANGE_SQUARED;
+        var spectrum = deck.spectrum;
+        if (spectrum.channel() != null && (!active || !spectrum.channel().equals(visual.channel()))) {
+            AlbumMeterInput.unwatchWorld(spectrum.channel());
+            spectrum.reset();
+        }
+        if (active) {
+            // Digits require only the existing visual snapshot, even when no PCM is heard.
+            state.trackNumber = visual.trackNumber();
+            if (AlbumMeterInput.watchWorld(visual.channel(), distanceSquared, now)) {
+                spectrum.update(visual.channel(), now);
+                state.vfdLit = spectrum.lit();
+                state.vfdPeak = spectrum.peak();
+            } else {
+                spectrum.reset();
+            }
+        }
     }
 
     @Override
@@ -84,6 +124,7 @@ final class AlbumJukeboxRenderer implements BlockEntityRenderer<AlbumBlockEntity
             drawDisc(state, poses, queue);
         }
         drawArm(state, poses, queue);
+        FrontDisplay.draw(poses, queue, state.vfdLit, state.vfdPeak, state.trackNumber);
         poses.popPose();
     }
 
@@ -178,8 +219,12 @@ final class AlbumJukeboxRenderer implements BlockEntityRenderer<AlbumBlockEntity
                     boolean xHigh = (corner & 3) >= 2;
                     boolean yHigh = ((corner + 1) & 2) != 0;
                     boolean zHigh = corner >= 4;
+                    // All four points remain in the solid-white atlas tile, but
+                    // span distinct UVs so shader-pack tangent generation is valid.
+                    float u = i < 2 ? 0.88F : 0.92F;
+                    float v = i == 0 || i == 3 ? 0.52F : 0.48F;
                     vertex(output, pose, xHigh ? right : left, yHigh ? top : bottom, zHigh ? back : front,
-                        0.9F, 0.5F, color, light, face[4], face[5], face[6]);
+                        u, v, color, light, face[4], face[5], face[6]);
                 }
             }
         }

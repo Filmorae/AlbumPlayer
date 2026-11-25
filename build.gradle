@@ -50,3 +50,33 @@ processResources {
     inputs.property 'version', version
     filesMatching('fabric.mod.json') { expand 'version': version }
 }
+
+// Dependency-free DSP regression check; no test framework is necessary.
+def meterCheckOutput = layout.buildDirectory.dir('classes/meterCheck')
+tasks.register('compileMeterCheck', JavaCompile) {
+    dependsOn tasks.named('compileJava')
+    source = fileTree('src/check/java') { include '**/*.java' }
+    classpath = files(sourceSets.main.output.classesDirs)
+    destinationDirectory = meterCheckOutput
+}
+tasks.register('meterInputCheck', JavaExec) {
+    dependsOn tasks.named('compileMeterCheck')
+    classpath = files(meterCheckOutput, sourceSets.main.output.classesDirs)
+    mainClass = 'dev.geduu.albumjukebox.MeterInputCheck'
+}
+tasks.named('check') { dependsOn tasks.named('meterInputCheck') }
+
+// Client presentation logic also has dependency-free checks.
+def clientCheckOutput = layout.buildDirectory.dir('classes/clientPresentationCheck')
+tasks.register('compileClientPresentationCheck', JavaCompile) {
+    dependsOn tasks.named('compileClientJava')
+    source = fileTree('src/clientCheck/java') { include '**/*.java' }
+    classpath = files(sourceSets.client.output.classesDirs, sourceSets.main.output.classesDirs)
+    destinationDirectory = clientCheckOutput
+}
+tasks.register('clientPresentationCheck', JavaExec) {
+    dependsOn tasks.named('compileClientPresentationCheck')
+    classpath = files(clientCheckOutput, sourceSets.client.output.classesDirs, sourceSets.main.output.classesDirs)
+    mainClass = 'dev.geduu.albumjukebox.client.ClientPresentationCheck'
+}
+tasks.named('check') { dependsOn tasks.named('clientPresentationCheck') }

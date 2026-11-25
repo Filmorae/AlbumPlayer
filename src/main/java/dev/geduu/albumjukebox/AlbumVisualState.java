@@ -3,9 +3,9 @@ package dev.geduu.albumjukebox;
 import java.util.UUID;
 
 public record AlbumVisualState(boolean hasDisc, int bodyColor, int labelColor, int discChange, Arm arm, UUID channel,
-                               int cueChange, int positionFrames, int durationFrames) {
+                               int cueChange, int positionFrames, int durationFrames, int trackNumber) {
     static final AlbumVisualState EMPTY = new AlbumVisualState(false, DiscColors.DEFAULT_BODY,
-        DiscColors.DEFAULT_LABEL, 0, Arm.REST, null, 0, 0, 0);
+        DiscColors.DEFAULT_LABEL, 0, Arm.REST, null, 0, 0, 0, 0);
 
     public enum Arm {
         REST, HOVER, PLAY;

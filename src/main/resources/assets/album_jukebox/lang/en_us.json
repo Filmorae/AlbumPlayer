@@ -17,5 +17,7 @@
   "album_jukebox.mode.all": "Repeat playlist",
   "album_jukebox.mode.one": "Repeat track",
   "album_jukebox.show_vfd": "Show level meter",
-  "album_jukebox.show_disc": "Show record"
+  "album_jukebox.show_disc": "Show record",
+  "album_jukebox.peak_hold.enable": "Peak hold: Off (click to enable)",
+  "album_jukebox.peak_hold.disable": "Peak hold: On (click to disable)"
 }

@@ -24,6 +24,9 @@ final class AlbumScreen extends AbstractContainerScreen<AlbumMenu> {
     private static final Identifier ICONS = AlbumJukebox.id("textures/gui/controls.png");
     private static final int WIDTH = 182;
     private static final int HEIGHT = 246;
+    private static final int PEAK_BUTTON_X = WIDTH - 19;
+    private static final int PEAK_BUTTON_Y = 16;
+    private static final int ICON_ATLAS_WIDTH = 160;
     private static final int TOP = 164;
     private static final int BOTTOM = 170;
     private static final int ROW_HEIGHT = 18;
@@ -54,6 +57,10 @@ final class AlbumScreen extends AbstractContainerScreen<AlbumMenu> {
     AlbumScreen(AlbumMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title, 176, 168);
         inventoryLabelY = 74;
+        if (!menu.storage) {
+            showList = AlbumClientSession.showList();
+            showVfd = AlbumClientSession.showVfd();
+        }
     }
 
     @Override
@@ -89,7 +96,7 @@ final class AlbumScreen extends AbstractContainerScreen<AlbumMenu> {
         if (showList) {
             list(graphics, x, y, mouseX, mouseY);
         } else if (showVfd) {
-            drawVfd(graphics);
+            drawVfd(graphics, x, y);
         } else {
             disc(graphics);
         }
@@ -119,7 +126,9 @@ final class AlbumScreen extends AbstractContainerScreen<AlbumMenu> {
         graphics.centeredText(font, truncate(title(disc), WIDTH - 24), WIDTH / 2, 135, WHITE);
     }
 
-    private void drawVfd(GuiGraphicsExtractor graphics) {
+    private void drawVfd(GuiGraphicsExtractor graphics, double x, double y) {
+        boolean held = AlbumClientSession.peakHold();
+        button(graphics, held ? 8 : 9, PEAK_BUTTON_X, PEAK_BUTTON_Y, x, y, true, held ? GREEN : MUTED);
         meter.draw(graphics, font, menu.status() == PlaybackStatus.PLAYING ? menu.audioChannel() : null);
         var disc = menu.disc(menu.selected());
         if (!disc.isEmpty()) {
@@ -199,7 +208,9 @@ final class AlbumScreen extends AbstractContainerScreen<AlbumMenu> {
 
     private void controlsTooltip(GuiGraphicsExtractor graphics, double x, double y, int mouseX, int mouseY) {
         String key = null;
-        if (isButton(x, y, 19, 230)) {
+        if (isPeakButton(x, y)) {
+            key = AlbumClientSession.peakHold() ? "peak_hold.disable" : "peak_hold.enable";
+        } else if (isButton(x, y, 19, 230)) {
             key = showList ? "hide_list" : "show_list";
         } else if (isButton(x, y, WIDTH - 19, 230)) {
             key = "mode." + menu.mode().name().toLowerCase(Locale.ROOT);
@@ -236,7 +247,7 @@ final class AlbumScreen extends AbstractContainerScreen<AlbumMenu> {
     private static void icon(GuiGraphicsExtractor graphics, int index, int x, int y, int tint, int size) {
         graphics.pose().pushMatrix();
         graphics.pose().translate(x, y).scale(size / 16F);
-        graphics.blit(RenderPipelines.GUI_TEXTURED, ICONS, 0, 0, index * 16, 0, 16, 16, 128, 16, tint);
+        graphics.blit(RenderPipelines.GUI_TEXTURED, ICONS, 0, 0, index * 16, 0, 16, 16, ICON_ATLAS_WIDTH, 16, tint);
         graphics.pose().popMatrix();
     }
 
@@ -251,12 +262,16 @@ final class AlbumScreen extends AbstractContainerScreen<AlbumMenu> {
         refreshTracks();
         double x = localX(event.x());
         double y = localY(event.y());
-        if (within(x, y, 6, 176, WIDTH - 12, 15) && canSeek()) {
+        // The peak button overlaps the broad click-to-toggle VFD region; handle it first.
+        if (isPeakButton(x, y)) {
+            AlbumClientSession.togglePeakHold();
+        } else if (within(x, y, 6, 176, WIDTH - 12, 15) && canSeek()) {
             scrubbing = true;
             seekRevision = menu.revision();
             previewSeek(x);
         } else if (isButton(x, y, 19, 230)) {
             showList = !showList;
+            AlbumClientSession.rememberView(showList, showVfd);
             if (showList) {
                 meter.suspend();
                 int index = tracks.indexOf(menu.selected());
@@ -274,6 +289,7 @@ final class AlbumScreen extends AbstractContainerScreen<AlbumMenu> {
             send(AlbumAction.NEXT, 0, menu.revision());
         } else if (!showList && canToggleVfd(x, y)) {
             showVfd = !showVfd;
+            AlbumClientSession.rememberView(showList, showVfd);
             if (!showVfd) {
                 meter.suspend();
             }
@@ -330,6 +346,10 @@ final class AlbumScreen extends AbstractContainerScreen<AlbumMenu> {
             return true;
         }
         return menu.storage && super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+    }
+
+    private boolean isPeakButton(double x, double y) {
+        return !showList && showVfd && isButton(x, y, PEAK_BUTTON_X, PEAK_BUTTON_Y);
     }
 
     private boolean canToggleVfd(double x, double y) {

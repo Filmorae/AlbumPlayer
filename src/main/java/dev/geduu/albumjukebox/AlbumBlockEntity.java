@@ -52,6 +52,7 @@ public final class AlbumBlockEntity extends BlockEntity {
     private PlaybackMode mode = PlaybackMode.ONCE;
     private PlaybackStatus status = PlaybackStatus.STOPPED;
     private int selected = -1;
+    private int trackNumber;
     private int storedPosition;
     private int revision;
     private ItemStack selectedDisc = ItemStack.EMPTY;
@@ -116,6 +117,16 @@ public final class AlbumBlockEntity extends BlockEntity {
             clip = null;
             status = PlaybackStatus.STOPPED;
         }
+        updateTrackNumber();
+    }
+
+    // Count the same non-empty Blanks slots as the playlist UI, not storage slot IDs.
+    private void updateTrackNumber() {
+        trackNumber = 0;
+        if (selected < 0) return;
+        for (int i = 0; i <= selected; i++) {
+            if (DiscColors.isBlanksDisc(inventory.getItem(i))) trackNumber++;
+        }
     }
 
     @Override
@@ -126,7 +137,8 @@ public final class AlbumBlockEntity extends BlockEntity {
                 input.getIntOr("Body", DiscColors.DEFAULT_BODY), input.getIntOr("Label", DiscColors.DEFAULT_LABEL),
                 input.getIntOr("DiscChange", 0), AlbumVisualState.Arm.fromId(input.getIntOr("Arm", 0)),
                 input.read("Channel", UUIDUtil.CODEC).orElse(null), input.getIntOr("CueChange", 0),
-                input.getIntOr("PositionFrames", 0), input.getIntOr("DurationFrames", 0));
+                input.getIntOr("PositionFrames", 0), input.getIntOr("DurationFrames", 0),
+                Math.clamp(input.getIntOr("TrackNumber", 0), 0, SIZE));
             visualReceivedAt = System.nanoTime();
             return;
         }
@@ -164,6 +176,7 @@ public final class AlbumBlockEntity extends BlockEntity {
         tag.putInt("CueChange", state.cueChange());
         tag.putInt("PositionFrames", state.positionFrames());
         tag.putInt("DurationFrames", state.durationFrames());
+        if (state.trackNumber() > 0) tag.putInt("TrackNumber", state.trackNumber());
         if (state.channel() != null) {
             tag.store("Channel", UUIDUtil.CODEC, state.channel());
         }
@@ -185,14 +198,14 @@ public final class AlbumBlockEntity extends BlockEntity {
 
     private AlbumVisualState visualSnapshot(AlbumVisualState.Arm arm) {
         return new AlbumVisualState(!selectedDisc.isEmpty(), colors.body(), colors.label(), discChange, arm,
-            channelId, cueChange, position(), duration());
+            channelId, cueChange, position(), duration(), trackNumber);
     }
 
     private boolean updateVisualState(long gameTime) {
         var arm = visualArm();
         boolean periodic = arm == AlbumVisualState.Arm.PLAY && gameTime >= nextVisualSync;
         if (!periodic && visualState.discChange() == discChange && visualState.cueChange() == cueChange
-            && visualState.arm() == arm && Objects.equals(visualState.channel(), channelId)) {
+            && visualState.arm() == arm && visualState.trackNumber() == trackNumber && Objects.equals(visualState.channel(), channelId)) {
             return false;
         }
         visualState = visualSnapshot(arm);
@@ -297,6 +310,7 @@ public final class AlbumBlockEntity extends BlockEntity {
             colors = DiscColors.of(disc);
         }
         selected = slot;
+        updateTrackNumber();
         selectedDisc = disc.copy();
         storedPosition = 0;
         cueChange++;

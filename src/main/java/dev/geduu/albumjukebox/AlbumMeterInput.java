@@ -1,13 +1,20 @@
 package dev.geduu.albumjukebox;
 
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class AlbumMeterInput {
     public static final int BANDS = 24;
     private static final int SAMPLE_RATE = 48_000;
     private static final int WINDOW_SIZE = 4096;
     private static final int WINDOW_MASK = WINDOW_SIZE - 1;
-    private static final int HOP_SIZE = 960;
+    private static final int GUI_HOP_SIZE = 960;
+    private static final int WORLD_HOP_SIZE = 1920;
+    private static final int MAX_WORLD_CHANNELS = 4;
+    private static final long WORLD_LEASE_NANOS = 300_000_000L;
+    private static final long PCM_GAP_NANOS = 250_000_000L;
     private static final int LOW_HZ = 47;
     private static final int HIGH_HZ = 15_000;
     private static final double BAND_RATIO = Math.pow((double) HIGH_HZ / LOW_HZ, 1.0 / BANDS);
@@ -18,7 +25,10 @@ public final class AlbumMeterInput {
     private static final int[] EDGES = new int[BANDS + 1];
     private static final double NORMALIZATION;
 
-    private static volatile Meter meter;
+    // The voice-chat callback and the renderer use the same analysis by channel.
+    // Each world lease expires unless a nearby front face is still rendered.
+    private static final Map<UUID, Meter> METERS = new ConcurrentHashMap<>();
+    private static volatile UUID guiChannel;
 
     static {
         double windowSum = 0;
@@ -57,24 +67,82 @@ public final class AlbumMeterInput {
         return Math.clamp((int) Math.floor(Math.log((double) hz / LOW_HZ) / Math.log(BAND_RATIO)), 0, BANDS - 1);
     }
 
-    public static void watch(UUID channel) {
-        Meter current = meter;
+    public static synchronized void watchGui(UUID channel) {
+        if (Objects.equals(guiChannel, channel)) {
+            return;
+        }
+        if (channel != null) {
+            METERS.computeIfAbsent(channel, Meter::new);
+        }
+        guiChannel = channel;
+        prune();
+    }
+
+    /** Refresh a short-lived world-render subscription. The nearest four streams win. */
+    public static synchronized boolean watchWorld(UUID channel, double distanceSquared, long now) {
         if (channel == null) {
-            meter = null;
-        } else if (current == null || !channel.equals(current.channel)) {
-            meter = new Meter(channel);
+            return false;
+        }
+        Meter meter = METERS.get(channel);
+        if (meter == null || meter.worldUntil <= now) {
+            int active = 0;
+            Meter farthest = null;
+            for (Meter candidate : METERS.values()) {
+                if (candidate.worldUntil > now) {
+                    active++;
+                    if (farthest == null || candidate.distanceSquared > farthest.distanceSquared) {
+                        farthest = candidate;
+                    }
+                }
+            }
+            if (active >= MAX_WORLD_CHANNELS) {
+                if (farthest == null || distanceSquared >= farthest.distanceSquared) {
+                    return false;
+                }
+                farthest.worldUntil = 0L;
+                if (!farthest.channel.equals(guiChannel)) {
+                    METERS.remove(farthest.channel, farthest);
+                }
+            }
+            meter = METERS.computeIfAbsent(channel, Meter::new);
+        }
+        meter.distanceSquared = distanceSquared;
+        meter.worldUntil = now + WORLD_LEASE_NANOS;
+        return true;
+    }
+
+    public static synchronized void unwatchWorld(UUID channel) {
+        if (channel == null) return;
+        Meter meter = METERS.get(channel);
+        if (meter != null) {
+            meter.worldUntil = 0L;
+            if (!channel.equals(guiChannel)) METERS.remove(channel, meter);
         }
     }
 
-    public static Sample sample() {
-        Meter current = meter;
+    public static synchronized void prune() {
+        long now = System.nanoTime();
+        METERS.entrySet().removeIf(entry -> !entry.getKey().equals(guiChannel) && entry.getValue().worldUntil <= now);
+    }
+
+    public static synchronized void clear() {
+        guiChannel = null;
+        METERS.clear();
+    }
+
+    public static Sample sample(UUID channel) {
+        Meter current = channel == null ? null : METERS.get(channel);
         return current == null ? null : current.sample;
     }
 
     static void accept(UUID source, short[] pcm) {
-        Meter current = meter;
-        if (current != null && current.channel.equals(source) && pcm != null) {
-            current.accept(pcm);
+        if (source == null || pcm == null) return;
+        Meter current = METERS.get(source);
+        if (current == null) return;
+        long now = System.nanoTime();
+        boolean gui = source.equals(guiChannel);
+        if (gui || current.worldUntil > now) {
+            current.accept(pcm, gui ? GUI_HOP_SIZE : WORLD_HOP_SIZE, now);
         }
     }
 
@@ -86,24 +154,28 @@ public final class AlbumMeterInput {
         private int write;
         private int pending;
         private volatile Sample sample;
+        private volatile long worldUntil;
+        private double distanceSquared;
+        private long lastPcm;
 
         private Meter(UUID channel) {
             this.channel = channel;
         }
 
-        private synchronized void accept(short[] pcm) {
-            if (pcm.length == 0) {
+        private synchronized void accept(short[] pcm, int hopSize, long now) {
+            if (pcm.length == 0 || now - lastPcm > PCM_GAP_NANOS) {
                 write = 0;
                 pending = 0;
                 sample = null;
-                return;
             }
+            lastPcm = now;
+            if (pcm.length == 0) return;
             for (short value : pcm) {
                 history[write] = value;
                 write = (write + 1) & WINDOW_MASK;
             }
             pending += pcm.length;
-            if (pending < (sample == null ? WINDOW_SIZE : HOP_SIZE)) {
+            if (pending < (sample == null ? WINDOW_SIZE : hopSize)) {
                 return;
             }
             pending = 0;

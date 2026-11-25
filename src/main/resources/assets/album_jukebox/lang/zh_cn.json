@@ -17,5 +17,7 @@
   "album_jukebox.mode.all": "列表循环",
   "album_jukebox.mode.one": "单曲循环",
   "album_jukebox.show_vfd": "显示电平表",
-  "album_jukebox.show_disc": "显示唱片"
+  "album_jukebox.show_disc": "显示唱片",
+  "album_jukebox.peak_hold.enable": "峰值暂留：已关闭（点击开启）",
+  "album_jukebox.peak_hold.disable": "峰值暂留：已开启（点击关闭）"
 }
